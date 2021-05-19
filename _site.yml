@@ -1,0 +1,16 @@
+name: "LAC Mobility Data Analysis -- Tao"
+output_dir: "."
+navbar:
+  title: "LAC Mobility Data Analysis -- Tao"
+  left:
+    - text: "Research Project"
+      href: index.html
+  right:
+    - text: "Conti Lab"
+      href: https://contilab.usc.edu/about/
+output:
+  html_document:
+    theme: cosmo
+    include:
+      after_body: footer.html
+    css: styles.css

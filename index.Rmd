@@ -1,0 +1,415 @@
+---
+title: "covid_19_mobility_DA_show"
+author: "Tao Huang & Abigail Horn"
+date: "5/5/2021"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+---
+
+```{r setup, message=FALSE, echo=FALSE, warning=FALSE}
+library(data.table)
+library(tidyverse)
+library(hrbrthemes)
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(DT)
+library(knitr)
+library(mapview)
+library(tidycensus)
+library(sf)
+library(ggplot2)
+library(zoo)
+
+
+
+opts_chunk$set(
+  warning = FALSE,
+  message = FALSE,
+  eval=TRUE,
+  echo = FALSE,
+  fig.width = 7, 
+  fig.align = 'center',
+  fig.asp = 0.618,
+  out.width = "700px")
+```
+
+# SafeGraph data
+
+
+## 1. Process
+
+#### 1.1 Data
+
+*Social Distance Metrics (API from SafeGraph)*:
+
+This product is delivered daily (3 days delayed from actual). Daily data is available going back to January 1, 2019. We used v2.1 to create the historical data from Jan 1, 2019 - Dec 31, 2019 (the backfill) as well as the data from May 10, 2020 forwards. However, the Jan 1-May 9, 2020 data is on v2.0. 
+
+The data was generated using a panel of GPS pings from anonymous mobile devices. We determine the common nighttime location of each mobile device over a 6 week period to a Geohash-7 granularity (~153m x ~153m). For ease of reference, we call this common nighttime location, the device's "home". We then aggregate the devices by home census block group and provide the metrics set out below for each census block group.
+
+#### 1.2 Target variables list:
+
+##### *completely_home_device_count*:
+Out of the device_count, the number of devices which did not leave the geohash-7 in which their home is located during    the time period.
+
+##### *median_percentage_time_home*:
+Median percentage of time we observed devices home versus observed at all during the time period.
+
+##### *full_time_work_behavior_devices*：
+Out of the device_count, the number of devices that spent greater than 6 hours at a location other than their home geohash-7
+during the period of 8 am - 6 pm in local time.
+
+##### *distance_traveled_from_home*：
+Median distance (in meters) traveled from the geohash-7 of the home by the devices included in the device_count during the time period (excluding any distances of 0). We first find the median for each device and then find the median across all of the devices.
+
+#### 1.3 Formula I used:
+
+##### A.CBG adjusted_count = (CBG raw_count / CBG Sample Size) * Census Population(2015-2019,from 'tidycensus')
+
+##### B.Zeta_i(t) = Zeta_i(t) / Zeta_i(0)
+
+##### C.WoW_i(t) = Zeta_i(t) - Zeta_i(t-1)
+
+##### D. population_density (Neighborhood) = neighborhood population / neighborhood area (“ShapeSTAre”) 
+
+
+--------
+
+## 2.Time-series and Choropleth Maps
+
+
+### a.completely_home_device_count
+Out of the device_count, the number of devices which did not leave the geohash-7 in which their home is located during the time period.
+
+
+#### a1.Time-series (week pattern)
+```{R}
+#prepare data#
+aj_com_nb_sd_wow_wp<-read.csv('/Users/huangtao/Desktop/covid_19_keck_Research/research_code/aj_com_nb_sd_wow_wp.csv')
+aj_com_nb_sd_wow_wp<-as.data.table(aj_com_nb_sd_wow_wp)
+
+nb_zeta_com_wp <-aj_com_nb_sd_wow_wp %>% 
+  mutate() %>% 
+  plot_ly(x = ~ start_date.x, y = ~ zeta_achdc_w, color = ~ factor(CSA_NAME),type = 'scatter', mode = 'lines',
+          alpha=0.1,line.width = 0.00001,span=0.00001) %>%
+    layout(title = "com_week_P_NB: zeta of adjusted 'completely_home_device_count'")
+
+nb_zeta_com_wp
+
+```
+
+#### a2.Choropleth Maps in the Neighborhood level {.tabset}
+
+```{R}
+CSA_NB<-st_read('/Users/huangtao/Desktop/covid_19_keck_Research/CSA/data/shapefiles/CSAs/Countywide_Statistical_Areas_(CSA).shp')
+
+CSA_NB$LABEL<-gsub('[U]nincorporated - ','',CSA_NB$LABEL)
+CSA_NB$LABEL<-gsub('City of ','',CSA_NB$LABEL)
+CSA_NB$LABEL<-gsub('Los Angeles - ','',CSA_NB$LABEL)
+CSA_NB$LABEL<-gsub('Silverlake','Silver Lake',CSA_NB$LABEL)
+
+#nb_wp3
+#aj_com_nb_sd_wow_wp
+nb_wp3<-aj_com_nb_sd_wow_wp[start_date.x=='2020-03-07']
+nb_wp3<-nb_wp3[,.(CSA_NAME,zeta_achdc_w)]
+setnames(nb_wp3,'CSA_NAME','LABEL')
+nb_wp3<-as.data.frame(nb_wp3)
+#map_nb_wp3
+map_nb_wp3<-inner_join(CSA_NB,nb_wp3)
+
+
+
+
+#nb_wp5
+nb_wp5<-aj_com_nb_sd_wow_wp[start_date.x=='2020-05-02']
+nb_wp5<-nb_wp5[,.(CSA_NAME,zeta_achdc_w)]
+setnames(nb_wp5,'CSA_NAME','LABEL')
+nb_wp5<-as.data.frame(nb_wp5)
+#map_nb_wp4
+map_nb_wp5<-inner_join(CSA_NB,nb_wp5)
+
+
+#nb_wp7
+nb_wp7<-aj_com_nb_sd_wow_wp[start_date.x=='2020-07-04']
+nb_wp7<-nb_wp7[,.(CSA_NAME,zeta_achdc_w)]
+setnames(nb_wp7,'CSA_NAME','LABEL')
+nb_wp7<-as.data.frame(nb_wp7)
+#map_nb_wp4
+map_nb_wp7<-inner_join(CSA_NB,nb_wp7)
+
+
+
+
+#nb_wp11
+nb_wp11<-aj_com_nb_sd_wow_wp[start_date.x=='2020-11-07']
+nb_wp11<-nb_wp11[,.(CSA_NAME,zeta_achdc_w)]
+setnames(nb_wp11,'CSA_NAME','LABEL')
+nb_wp11<-as.data.frame(nb_wp11)
+#map_nb_wp4
+map_nb_wp11<-inner_join(CSA_NB,nb_wp11)
+
+
+
+#nb_wp14
+nb_wp14<-aj_com_nb_sd_wow_wp[start_date.x=='2021-02-06']
+nb_wp14<-nb_wp14[,.(CSA_NAME,zeta_achdc_w)]
+setnames(nb_wp14,'CSA_NAME','LABEL')
+nb_wp14<-as.data.frame(nb_wp14)
+#map_nb_wp4
+map_nb_wp14<-inner_join(CSA_NB,nb_wp14)
+
+
+```
+
+
+##### 2020-03(baseline)
+```{R}
+map_nb_wp3 %>% 
+  mapview(zcol = "zeta_achdc_w",at = c(0,1,1.5,2,2.5,3,4,5),  legend = TRUE
+          ,layer.name = "2020-03_Baseline") 
+```
+
+##### 2020-05
+```{R}
+map_nb_wp5 %>% 
+  mapview(zcol = "zeta_achdc_w",at = c(0,1,1.5,2,2.5,3,4,5), legend = TRUE
+          ,layer.name = "2020-05_%change_CHDC") 
+```
+
+##### 2020-07
+```{R}
+map_nb_wp7 %>% 
+  mapview(zcol = "zeta_achdc_w",at = c(0,1,1.5,2,2.5,3,4,5),  legend = TRUE
+          ,layer.name = "2020-07_%change_CHDC") 
+```
+
+##### 2020-11
+```{R}
+map_nb_wp11 %>% 
+  mapview(zcol = "zeta_achdc_w",at = c(0,1,1.5,2,2.5,3,4,5), legend = TRUE
+          ,layer.name = "2020-11_%change_CHDC") 
+```
+
+##### 2020-14
+```{R}
+map_nb_wp14 %>% 
+  mapview(zcol = "zeta_achdc_w",at = c(0,1,1.5,2,2.5,3,4,5),  legend = TRUE
+          ,layer.name = "2021-02_%change_CHDC") 
+```
+
+
+#### a3.Choropleth Maps in the Tract level {.tabset}
+
+```{R}
+CSA<-readRDS('/Users/huangtao/Desktop/covid_19_keck_Research/CSA/CSA_crosswalk.rds')
+
+CSA$CSA_NAME<-gsub('[U]nincorporated - ','',CSA$CSA_NAME)
+CSA$CSA_NAME<-gsub('City of ','',CSA$CSA_NAME)
+CSA$CSA_NAME<-gsub('Los Angeles - ','',CSA$CSA_NAME)
+CSA$CSA_NAME<-gsub('Silverlake','Silver Lake',CSA$CSA_NAME)
+
+aj_com_tr_sd_wp<-read.csv('/Users/huangtao/Desktop/covid_19_keck_Research/research_code/aj_com_tr_sd_wp.csv')
+aj_com_tr_sd_wp<-as.data.table(aj_com_tr_sd_wp)
+aj_com_tr_sd_wp[,GEOID_NEW:=as.character(GEOID_NEW)]
+
+#tr_wp3
+tr_wp3<-aj_com_tr_sd_wp[start_date.x=='2020-03-07']
+tr_wp3<-tr_wp3[,.(GEOID_NEW,zeta_achdc_w)]
+tr_wp3<-as.data.frame(tr_wp3)
+#map_nb_wp3
+map_tr_wp3<-inner_join(CSA,tr_wp3)
+
+
+
+#tr_wp5
+tr_wp5<-aj_com_tr_sd_wp[start_date.x=='2020-05-02']
+tr_wp5<-tr_wp5[,.(GEOID_NEW,zeta_achdc_w)]
+tr_wp5<-as.data.frame(tr_wp5)
+#map_nb_wp4
+map_tr_wp5<-inner_join(CSA,tr_wp5)
+
+
+#tr_wp7
+tr_wp7<-aj_com_tr_sd_wp[start_date.x=='2020-07-04']
+tr_wp7<-tr_wp7[,.(GEOID_NEW,zeta_achdc_w)]
+tr_wp7<-as.data.frame(tr_wp7)
+#map_nb_wp4
+map_tr_wp7<-inner_join(CSA,tr_wp7)
+
+
+
+
+#tr_wp11
+tr_wp11<-aj_com_tr_sd_wp[start_date.x=='2020-11-07']
+tr_wp11<-tr_wp11[,.(GEOID_NEW,zeta_achdc_w)]
+tr_wp11<-as.data.frame(tr_wp11)
+#map_nb_wp4
+map_tr_wp11<-inner_join(CSA,tr_wp11)
+
+
+#tr_wp14
+tr_wp14<-aj_com_tr_sd_wp[start_date.x=='2021-02-06']
+tr_wp14<-tr_wp14[,.(GEOID_NEW,zeta_achdc_w)]
+tr_wp14<-as.data.frame(tr_wp14)
+#map_nb_wp4
+map_tr_wp14<-inner_join(CSA,tr_wp14)
+
+```
+
+##### 2020-03(baseline)
+```{R}
+map_tr_wp3 %>% 
+  mapview(zcol = "zeta_achdc_w",at = c(0,1,1.5,2,2.5,3,4,5), legend = TRUE, 
+          layer.name = "2020-03_baseline_CHDC_TR") 
+
+```
+
+
+##### 2020-05
+```{R}
+map_tr_wp5 %>% 
+  mapview(zcol = "zeta_achdc_w",at = c(0,1,1.5,2,2.5,3,4,5), legend = TRUE
+          ,layer.name = "2020-05_%change_CHDC_TR") 
+```
+
+##### 2020-07
+```{R}
+map_tr_wp7 %>% 
+  mapview(zcol = "zeta_achdc_w",at = c(0,1,1.5,2,2.5,3,4,5), legend = TRUE
+          ,layer.name = "2020-07_%change_CHDC_TR") 
+```
+
+##### 2020-11
+```{R}
+map_tr_wp11 %>% 
+  mapview(zcol = "zeta_achdc_w",at = c(0,1,1.5,2,2.5,3,4,5),  legend = TRUE
+          ,layer.name = "2020-11_%change_CHDC_TR") 
+```
+
+##### 2020-14
+```{R}
+map_tr_wp14 %>% 
+  mapview(zcol = "zeta_achdc_w",at = c(0,1,1.5,2,2.5,3,4,5), legend = TRUE
+          ,layer.name = "2021-02_%change_CHDC_TR") 
+```
+
+
+
+-----------
+
+
+# COVID data
+
+## 1.Process
+
+### 1.1 Data
+
+#### COVID-19 data for each neighborhood from the LA Times.
+
+### 1.2Formula I used:
+
+#### A. one-week crude IR = [ sum(new infections in location i during 7 days) / population of I ] * 100,000
+
+
+## 2.Choropleth Maps in the Neighborhood level {.tabset}
+
+```{R}
+# 1.Covid-19 Crude IR  v.s. Mobility data - Completely Home Device Count(CHDS)  
+CSA <- st_read("/Users/huangtao/Desktop/covid_19_keck_Research/NB_mapping/Countywide_Statistical_Areas_(CSA)/Countywide_Statistical_Areas_(CSA).shp")
+
+CSA$LABEL<-gsub('[U]nincorporated - ','',CSA$LABEL)
+CSA$LABEL<-gsub('City of ','',CSA$LABEL)
+CSA$LABEL<-gsub('Los Angeles - ','',CSA$LABEL)
+CSA$LABEL<-gsub('Silverlake','Silver Lake',CSA$LABEL)
+
+#data 
+covidate<-fread('/Users/huangtao/Desktop/covid_19_keck_Research/research_code/covidate.csv')
+covidate<-as.data.table(covidate)
+#covid
+
+#march, no real first week.---  '2020-03-21'
+covidate_03<-covidate[date=='2020-03-21']
+covidate_03<-covidate_03[,.(LABEL,crude_ir_week)]
+covidate_03<-as.data.frame(covidate_03)
+map_covidate_03<-inner_join(CSA,covidate_03)
+
+
+#05, no real first week.---  '2020-03-21'
+covidate_05<-covidate[date=='2020-05-02']
+covidate_05<-covidate_05[,.(LABEL,crude_ir_week)]
+covidate_05<-as.data.frame(covidate_05)
+map_covidate_05<-inner_join(CSA,covidate_05)
+
+
+#07, no real first week.---  '2020-03-21'
+covidate_07<-covidate[date=='2020-07-04']
+covidate_07<-covidate_07[,.(LABEL,crude_ir_week)]
+covidate_07<-as.data.frame(covidate_07)
+map_covidate_07<-inner_join(CSA,covidate_07)
+
+
+
+
+#11, no real first week.---  '2020-03-21'
+covidate_11<-covidate[date=='2020-11-07']
+covidate_11<-covidate_11[,.(LABEL,crude_ir_week)]
+covidate_11<-as.data.frame(covidate_11)
+map_covidate_11<-inner_join(CSA,covidate_11)
+
+
+
+
+#14, no real first week.---  '2020-03-21'
+covidate_14<-covidate[date=='2021-02-06']
+covidate_14<-covidate_14[,.(LABEL,crude_ir_week)]
+covidate_14<-as.data.frame(covidate_14)
+map_covidate_14<-inner_join(CSA,covidate_14)
+
+```
+
+
+
+
+### 2020-03(baseline)
+```{R}
+map_covidate_03 %>% 
+  mapview(zcol = "crude_ir_week",at = c(0,50,100,200,400,600,800,1000,2000,4000,8000,10000),  legend = TRUE,layer.name = "2020-03_Crude_IR") 
+```
+
+
+### 2020-05
+```{R}
+map_covidate_05 %>% 
+  mapview(zcol = "crude_ir_week", at = c(0,50,100,200,400,600,800,1000,2000,4000,8000,10000), legend = TRUE,layer.name = "2020-05_Crude_IR") 
+```
+
+### 2020-07
+```{R}
+map_covidate_07 %>% 
+  mapview(zcol = "crude_ir_week", at = c(0,50,100,200,400,600,800,1000,2000,4000,8000,10000), legend = TRUE,layer.name = "2020-07_Crude_IR") 
+```
+
+
+### 2020-11
+```{R}
+map_covidate_11 %>% 
+  mapview(zcol = "crude_ir_week",at = c(0,50,100,200,400,600,800,1000,2000,4000,8000,10000),  legend = TRUE,layer.name = "2020-11_Crude_IR") 
+```
+
+### 2020-14
+```{R}
+map_covidate_14 %>% 
+  mapview(zcol = "crude_ir_week",at = c(0,50,100,200,400,600,800,1000,2000,4000,8000,10000),  legend = TRUE,layer.name = "2021-02_Crude_IR") 
+```
+
+
+
+
+
+
+
